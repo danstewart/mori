@@ -498,9 +498,13 @@ final class GhosttyApp {
                 return String(cString: mime) == "text/plain"
             } ?? buffer.first
             if let item = preferred, let data = item.data {
+                // Data is binary-safe with an explicit length and not
+                // NUL-terminated; decode the exact buffer, not past it.
+                // Use the repairing initializer so malformed UTF-8 still
+                // yields a value instead of aborting the clipboard operation.
                 text = String(
-                    bytes: UnsafeRawBufferPointer(start: data, count: item.len),
-                    encoding: .utf8
+                    decoding: UnsafeRawBufferPointer(start: data, count: item.len),
+                    as: UTF8.self
                 )
             }
         }
@@ -543,7 +547,15 @@ final class GhosttyApp {
             let item = content[i]
             guard let mime = item.mime, let data = item.data else { continue }
             if String(cString: mime) == "text/plain" {
-                textContent = String(cString: data)
+                // Data is binary-safe with an explicit length and not
+                // NUL-terminated; decode the exact buffer, not past it.
+                // Use the repairing initializer so malformed UTF-8 still
+                // copies (with replacement characters) instead of silently
+                // dropping the write.
+                textContent = String(
+                    decoding: UnsafeRawBufferPointer(start: data, count: item.len),
+                    as: UTF8.self
+                )
                 break
             }
         }
